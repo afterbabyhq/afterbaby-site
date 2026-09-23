@@ -1,0 +1,11 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><title>studio</title>
+<style>html,body{margin:0;height:100%;background:#fff;overflow:hidden}
+#stage{position:absolute;left:0;top:0;width:390px;height:844px;overflow:hidden;background:#fff}
+iframe{border:0;width:390px;height:844px;display:block}
+#flash{position:absolute;left:0;top:0;width:390px;height:844px;pointer-events:none;display:none}</style></head>
+<body><div id="stage"><iframe id="app" src="./index.html?studio=1"></iframe><div id="flash"></div></div>
+<script>
+// helpers for driving the app from the parent (same origin)
+window.app=()=>document.getElementById('app').contentWindow;
+window.flash=(c)=>{const f=document.getElementById('flash');f.style.background=c;f.style.display='block';setTimeout(()=>f.style.display='none',120)};
+</script></body></html>
