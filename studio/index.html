@@ -498,7 +498,11 @@ function footerHtml(){
 var OB = {step:0, name:'', birthDate:'', birthType:'', feeding:''};
 function viewOnboarding(){
   var s=OB.step;
-  var dots='<div class="progressdots">'+[0,1,2].map(function(i){return '<span class="d'+(i<=s?' on':'')+'"></span>';}).join('')+'</div>';
+  var steps=loopOn()?[0,1,2,3]:[0,1,2];
+  var dots='<div class="progressdots">'+steps.map(function(i){return '<span class="d'+(i<=s?' on':'')+'"></span>';}).join('')+'</div>';
+  if(s===3) return '<div style="padding-top:7vh">'+dots+
+    '<h1 class="center">Hear from us, rarely</h1>'+
+    '<p class="sub center">Optional. One tap to skip.</p>'+loopCard('onboard')+'</div>';
   if(s===0) return '<div style="padding-top:7vh" class="center">'+
     '<div class="mascot-hero">'+lily(92)+'</div>'+
     '<div class="wordmark" style="font-size:2.3rem;display:inline">AfterBaby</div>'+
@@ -540,7 +544,9 @@ function wireOnboarding(){
     var a=b.getAttribute('data-act');
     if(a==='ob-next'){ var n=OB.name.trim(); if(!n){ snack('Just a first name, so we can greet you.'); return; } OB.name=n; OB.step=1; app.innerHTML=viewOnboarding(); wireOnboarding(); }
     if(a==='ob-next2'){ if(!OB.birthDate){ snack('The birth date lets us pace your recovery.'); return; } if(!OB.birthType) OB.birthType='Rather not say'; OB.step=2; app.innerHTML=viewOnboarding(); wireOnboarding(); }
-    if(a==='ob-done'){ S.profile={name:OB.name, birthDate:OB.birthDate, birthType:OB.birthType, feeding:OB.feeding||'Rather not say', created:todayKey()}; persist(); nav('today'); snack('Welcome, '+OB.name+'. This space is yours.'); }
+    if(a==='ob-done'){ S.profile={name:OB.name, birthDate:OB.birthDate, birthType:OB.birthType, feeding:OB.feeding||'Rather not say', created:todayKey()}; persist(); if(loopOn()){ OB.step=3; render(); return; } nav('today'); snack('Welcome, '+OB.name+'. This space is yours.'); }
+    if(a==='loop-skip'){ sset('ab.loop_skipped',todayKey()); nav('today'); snack('Welcome, '+OB.name+'. This space is yours.'); return; }
+    if(a==='loop-join' && OB.step===3){ if(loopJoin('onboarding')){ nav('today'); } return; }
   };
 }
 
@@ -903,6 +909,8 @@ function viewVillage(){
   '<p class="tiny" style="margin-top:10px">Gently moderated. Preview. Opens with Village accounts.</p></div>';
   if(joined){
     h+='<div class="card quiet center"><span class="lbl">You are on the list</span><p class="sub" style="margin-top:6px">Plans and the three a.m. room open in your neighborhood soon. You will be first to know.</p></div>';
+  } else if(loopOn()){
+    h+=loopCard('village');
   } else {
     h+='<div class="card"><h3>Be first in your neighborhood</h3>'+
     '<label class="f" for="vg-zip">ZIP or postal code</label><input type="text" id="vg-zip" inputmode="numeric" autocomplete="postal-code" placeholder="11215">'+
@@ -926,6 +934,51 @@ function redflagsModal(){
   '<p class="tiny" style="margin-top:12px">When in doubt, call — saying I recently gave birth gets you taken seriously.</p>'+cite(['cdchear','acog736'])+'';
   openModal(h);
 }
+
+/* ================= stay in the loop (email, opt-in, Loops form endpoint) ================= */
+var LOOPS_FORM_URL='';   /* set to the Loops "form endpoint" URL to switch the email list on; empty = feature hidden */
+function loopsUrl(){ return LOOPS_FORM_URL || sget('ab.dev_loops_url') || ''; }
+function loopOn(){ return !!loopsUrl(); }
+function loopState(){ return jget('ab.loop', null); }
+function loopWeeks(){ if(!S.profile||!S.profile.birthDate) return ''; var d=(new Date()-new Date(S.profile.birthDate+'T00:00:00'))/864e5; return d>=0?String(Math.floor(d/7)):''; }
+function loopCard(where){
+  if(!loopOn()) return '';
+  var st=loopState();
+  if(st){
+    return '<div class="card quiet"><span class="lbl">Hear from us, rarely</span>'+
+    '<p class="sub" style="margin:6px 0 10px">On the list as <b>'+esc(st.email)+'</b>. A few times a year, never more. Every email has a one-tap unsubscribe.</p>'+
+    '<button class="btn ghost" data-act="loop-leave">Forget my email here</button></div>';
+  }
+  var village=(where==='village');
+  return '<div class="card" id="loopcard"><span class="lbl">'+(village?'Be first in your neighborhood':'Hear from us, rarely')+'</span>'+
+  '<p class="sub" style="margin:6px 0 10px">'+(village?
+    'Leave an email and, if you like, a ZIP, and we will write when Plans and the three a.m. room open near you.':
+    'If you like, leave an email and we will write when something real happens: the Village opening near you, a new feature, a note from the mom who built this. A few times a year, never more.')+'</p>'+
+  '<label class="f" for="loop-email">Email</label><input type="email" id="loop-email" inputmode="email" autocomplete="email" placeholder="you@example.com">'+
+  '<label class="f" for="loop-zip">ZIP or postal code <span class="tiny">(optional)</span></label><input type="text" id="loop-zip" inputmode="numeric" autocomplete="postal-code" placeholder="11215" value="'+esc(S.village&&S.village.zip||'')+'">'+
+  '<div class="spacer"></div><button class="btn" data-act="loop-join" data-src="'+where+'">Yes, write to me</button>'+
+  (where==='onboard'?'<button class="btn ghost" data-act="loop-skip">Not now</button>':'')+
+  '<p class="tiny" style="margin-top:10px">Your health information never leaves this phone. This is only an address to write to. Unsubscribe any time.</p></div>';
+}
+function loopValidEmail(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e); }
+function loopSend(payload){
+  var body=Object.keys(payload).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(payload[k]); }).join('&');
+  return fetch(loopsUrl(),{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body}).then(function(r){ return r.json().catch(function(){ return {success:r.ok}; }); });
+}
+function loopJoin(src){
+  var em=(document.getElementById('loop-email')||{}).value||''; em=em.trim().toLowerCase();
+  var zip=((document.getElementById('loop-zip')||{}).value||'').trim();
+  if(!loopValidEmail(em)){ snack('That email does not look complete yet.'); return false; }
+  var payload={email:em, source:src, stage_weeks:loopWeeks(), userGroup:'AfterBaby app'}; if(zip) payload.zip=zip;
+  jset('ab.loop',{email:em, zip:zip, date:todayKey(), source:src});
+  if(zip && !S.village){ S.village={zip:zip, date:todayKey()}; persist(); }
+  loopSend(payload).then(function(r){ if(!(r&&r.success)) throw new Error(r&&r.message||'send failed'); sdel('ab.loop_pending'); })
+  .catch(function(){ jset('ab.loop_pending',payload); });
+  snack('Thank you. We will write rarely, and only when it matters.');
+  return true;
+}
+function loopRetry(){ var p=jget('ab.loop_pending',null); if(!p||!loopOn()||!navigator.onLine) return; loopSend(p).then(function(r){ if(r&&r.success) sdel('ab.loop_pending'); }).catch(function(){}); }
+try{ window.addEventListener('online',loopRetry); setTimeout(loopRetry,4000); }catch(e){}
 
 /* ================= founding mother (one-time purchase) ================= */
 var FM_PRODUCT='com.afterbaby.app.founding_mother';
@@ -979,7 +1032,7 @@ function settingsModal(){
   '<button class="btn ghost" data-act="export">Export my data</button>'+
   '<button class="btn ghost" data-act="sources">Sources and references</button>'+
   '<button class="btn ghost" data-act="wipe" style="color:var(--alert);border-color:var(--alert)">Delete everything</button></div>'+
-  fmCard('settings')+
+  loopCard('settings')+fmCard('settings')+
   '<button class="btn ghost" data-act="modal-close">Close</button>'+
   '<p class="tiny center" style="margin-top:10px">AfterBaby · gentle information and support, not medical advice</p>';
   openModal(h);
@@ -1058,6 +1111,8 @@ function act(a, btn){
     else { done(false); }
     return;
   }
+  if(a==='loop-join'){ var src=(btn&&btn.getAttribute('data-src'))||'settings'; if(loopJoin(src)){ if(src==='settings'){ settingsModal(); } else { render(); } } return; }
+  if(a==='loop-leave'){ sdel('ab.loop'); sdel('ab.loop_pending'); snack('Forgotten here. Use the unsubscribe link in any email to stop them.'); if(document.querySelector('#modalroot .modal-bg')){ settingsModal(); } else { render(); } return; }
   if(a==='village-join'){ var z=document.getElementById('vg-zip').value.trim(); if(!z){ snack('Add your ZIP so we know where to open first.'); return; } S.village={zip:z, date:todayKey()}; persist(); render(); snack('You are on the list. Your village is coming.'); return; }
   if(a==='set-save'){ var n=document.getElementById('set-name').value.trim(); var d=document.getElementById('set-date').value; if(n) S.profile.name=n; if(d) S.profile.birthDate=d; persist(); closeModal(); render(); snack('Saved.'); return; }
   if(a==='export'){
