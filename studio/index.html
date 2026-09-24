@@ -544,7 +544,7 @@ function wireOnboarding(){
     var a=b.getAttribute('data-act');
     if(a==='ob-next'){ var n=OB.name.trim(); if(!n){ snack('Just a first name, so we can greet you.'); return; } OB.name=n; OB.step=1; app.innerHTML=viewOnboarding(); wireOnboarding(); }
     if(a==='ob-next2'){ if(!OB.birthDate){ snack('The birth date lets us pace your recovery.'); return; } if(!OB.birthType) OB.birthType='Rather not say'; OB.step=2; app.innerHTML=viewOnboarding(); wireOnboarding(); }
-    if(a==='ob-done'){ S.profile={name:OB.name, birthDate:OB.birthDate, birthType:OB.birthType, feeding:OB.feeding||'Rather not say', created:todayKey()}; persist(); if(loopOn()){ OB.step=3; render(); return; } nav('today'); snack('Welcome, '+OB.name+'. This space is yours.'); }
+    if(a==='ob-done'){ S.profile={name:OB.name, birthDate:OB.birthDate, birthType:OB.birthType, feeding:OB.feeding||'Rather not say', created:todayKey()}; persist(); if(loopOn()){ OB.step=3; app.innerHTML=viewOnboarding(); wireOnboarding(); return; } nav('today'); snack('Welcome, '+OB.name+'. This space is yours.'); }
     if(a==='loop-skip'){ sset('ab.loop_skipped',todayKey()); nav('today'); snack('Welcome, '+OB.name+'. This space is yours.'); return; }
     if(a==='loop-join' && OB.step===3){ if(loopJoin('onboarding')){ nav('today'); } return; }
   };
