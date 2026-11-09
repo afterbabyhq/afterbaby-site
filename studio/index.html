@@ -245,6 +245,7 @@ a{color:var(--pine); font-weight:500; text-decoration:none;}
   .card{box-shadow:none; border:1px solid #ccc; break-inside:avoid;}
   .app{padding-bottom:0; max-width:100%;}
 }
+.safe-exit{position:fixed;top:12px;right:12px;z-index:60;background:var(--blue-soft);border-color:transparent;color:var(--pine)}.safe-tick.on{background:var(--blue-soft);border-color:transparent}@media print{.safe-exit{display:none}}
 </style>
 </head>
 <body>
@@ -362,13 +363,18 @@ var SOURCES = {
   support:  ["BMC Psychology 2024", "Khademi K, Kaveh MH. Social support as a coping resource for psychosocial conditions in the postpartum period: a systematic review. BMC Psychology 2024", "https://pmc.ncbi.nlm.nih.gov/articles/PMC11131291/"],
   who:      ["WHO", "World Health Organization — Recommendations on maternal and newborn care for a positive postnatal experience (2022)", "https://www.who.int/publications/i/item/9789240045989"],
   medline:  ["MedlinePlus", "MedlinePlus (NIH) — Postpartum Care", "https://medlineplus.gov/postpartumcare.html"],
-  owh:      ["Office on Women's Health", "U.S. Office on Women's Health — Recovering from birth", "https://www.womenshealth.gov/pregnancy/childbirth-and-beyond/recovering-birth"]
+  owh:      ["Office on Women's Health", "U.S. Office on Women's Health — Recovering from birth", "https://www.womenshealth.gov/pregnancy/childbirth-and-beyond/recovering-birth"],
+  hark:     ["Sohal et al. 2007", "Sohal H, Eldridge S, Feder G. The sensitivity and specificity of four questions (HARK) to identify intimate partner violence: a diagnostic accuracy study in general practice. BMC Family Practice 2007;8:49", "https://doi.org/10.1186/1471-2296-8-49"],
+  hotline:  ["The Hotline", "National Domestic Violence Hotline — 1-800-799-7233, text START to 88788, chat at thehotline.org", "https://www.thehotline.org/"],
+  hotlineid:["The Hotline", "National Domestic Violence Hotline — Identify abuse: what is domestic violence?", "https://www.thehotline.org/identify-abuse/"],
+  acogipv:  ["ACOG", "ACOG Committee Opinion 518 — Intimate Partner Violence (2012, reaffirmed)", "https://www.acog.org/clinical/clinical-guidance/committee-opinion/articles/2012/02/intimate-partner-violence"],
+  cdcipv:   ["CDC", "CDC — About Intimate Partner Violence", "https://www.cdc.gov/intimate-partner-violence/about/index.html"]
 };
 function srclink(k){ var x=SOURCES[k]; return '<a href="'+x[2]+'" target="_blank" rel="noopener" aria-label="Source: '+esc(x[1])+'">'+esc(x[0])+'</a>'; }
 function cite(keys){ return '<span class="src">Source: '+keys.map(srclink).join(' · ')+'</span>'; }
 function li(text, keys){ return '<div class="li">'+text+cite(keys)+'</div>'; }
 function sourcesModal(){
-  var order=['acog736','acogppd','acogex','acogui','cdchear','cdcsleep','nimh','psi','psidep','psiocd','lifeline','epds','ccloch','sfsweat','nhsbody','aad','support','sacks','who','medline','owh'];
+  var order=['acog736','acogppd','acogex','acogui','cdchear','cdcsleep','nimh','psi','psidep','psiocd','lifeline','epds','ccloch','sfsweat','nhsbody','aad','support','sacks','who','medline','owh','hark','hotline','hotlineid','acogipv','cdcipv'];
   var h='<h2>Sources and references</h2>'+
   '<p class="sub" style="margin:8px 0 14px">Every piece of health information in AfterBaby is drawn from the sources below, and each statement in the app links to its source. AfterBaby offers general information for your own awareness; it is not medical advice, and it never replaces your doctor, midwife, nurse, or therapist.</p>'+
   '<div class="card srclist">'+order.map(function(k){ var x=SOURCES[k]; return '<div class="li"><a href="'+x[2]+'" target="_blank" rel="noopener">'+esc(x[1])+'</a><span class="tiny">'+esc(x[2])+'</span></div>'; }).join('')+'</div>'+
@@ -436,6 +442,90 @@ var EPDS_Q = [
   {q:"I have been so unhappy that I have been crying", opts:[["Yes, most of the time",3],["Yes, quite often",2],["Only occasionally",1],["No, never",0]]},
   {q:"The thought of harming myself has occurred to me", opts:[["Yes, quite often",3],["Sometimes",2],["Hardly ever",1],["Never",0]]}
 ];
+
+/* ================= safe at home (never saved) ================= */
+var SAFE = {active:false, step:0, answers:[], ticks:{}};
+var SAFE_Q = [
+  {k:'H', q:'Since your baby came, or in the last year — has your partner or an ex humiliated you, put you down, or emotionally hurt you in other ways?'},
+  {k:'A', q:'Have you been afraid of your partner or an ex?'},
+  {k:'R', q:'Have you been pressured or forced into any kind of sexual activity by your partner or an ex?'},
+  {k:'K', q:'Have you been kicked, hit, slapped, grabbed, or otherwise physically hurt by your partner or an ex?'}
+];
+var SAFE_OPTS = [['No', 0], ['I am not sure', 0.5], ['Yes', 1]];
+var SAFE_R = [
+  'You rehearse how to say things so they will not get angry.',
+  'You are told you are too sensitive, imagining it, or a bad mother.',
+  'They decide who you can see, text, or spend time with.',
+  'Money, the car, your phone, or the baby’s things are controlled or withheld.',
+  'They threaten to leave with the baby, or to tell people you are unfit.',
+  'Apologies come, then it happens again.',
+  'You feel smaller, or more alone, than you did before the baby.'
+];
+function safeReset(){ SAFE={active:false, step:0, answers:[], ticks:{}}; }
+function safeExit(){ safeReset(); S.view='today'; render(); window.scrollTo({top:0}); }
+function safeScore(){ var t=0, yes=0; for(var i=0;i<SAFE.answers.length;i++){ t+=SAFE.answers[i]; if(SAFE.answers[i]===1) yes++; } return {total:t, yes:yes, ticks:Object.keys(SAFE.ticks).length}; }
+function safeCard(){
+  return '<div class="card"><span class="lbl">Safe at home</span>'+
+  '<h2>Does home feel safe?</h2>'+
+  '<p class="sub">Relationships shift after a baby, and exhaustion blurs the edges. If something feels off and you cannot tell whether it is you — that is worth a quiet look. Four short questions. Nothing is saved, not even on this phone.</p>'+cite(['acogipv','hotlineid'])+
+  '<div class="spacer"></div><button class="btn ghost" data-act="safe-start">Take a quiet look</button>'+
+  '<p class="tiny" style="margin-top:12px">A Leave quickly button is on every screen, and so is the Escape key.</p></div>';
+}
+function safeExitBtn(){ return '<button class="qchip safe-exit" data-act="safe-exit" aria-label="Leave quickly: return to Today and clear these answers">Leave quickly</button>'; }
+function viewSafe(){
+  var st=SAFE.step;
+  if(st===0){
+    return safeExitBtn()+'<div style="padding-top:5vh"><div class="card"><span class="lbl">Safe at home</span>'+
+    '<h2>Before you begin</h2>'+
+    '<p style="margin-top:10px;font-weight:300">These are the four questions clinicians use when they ask about safety at home. There are no right answers, and <b style="font-weight:500">I am not sure</b> is a real answer.</p>'+
+    '<p style="margin-top:10px;font-weight:300">Your answers are never saved. They will not appear in your Brief, your pages, or anywhere on this device. Tap <b style="font-weight:500">Leave quickly</b> at any point to go back to Today with nothing kept.</p>'+
+    '<p class="tiny" style="margin-top:10px">If this phone is shared or watched, consider a friend’s phone or a library computer for the hotline links at the end.</p>'+
+    '<div class="spacer"></div><button class="btn blueb" data-act="safe-next">Begin</button>'+
+    '<button class="btn ghost" data-act="safe-cancel" style="border:none;color:var(--faint)">Not now</button></div></div>';
+  }
+  if(st>=1 && st<=SAFE_Q.length){
+    var i=st-1, q=SAFE_Q[i];
+    return safeExitBtn()+'<div style="padding-top:5vh"><p class="tiny center no-print">'+(i+1)+' of '+SAFE_Q.length+'</p>'+
+    '<div class="progressdots">'+SAFE_Q.map(function(_,j){return '<span class="d'+(j<=i?' on':'')+'"></span>';}).join('')+'</div>'+
+    '<div class="card"><h2>'+q.q+'</h2><div class="spacer"></div>'+
+    SAFE_OPTS.map(function(o,oi){return '<button class="btn ghost" style="text-align:left;font-weight:300;margin-top:10px;border-radius:18px" data-sq="'+oi+'">'+o[0]+'</button>';}).join('')+
+    '</div><button class="btn ghost no-print" data-act="safe-cancel" style="border:none;color:var(--faint)">Pause for now</button></div>';
+  }
+  if(st===SAFE_Q.length+1){
+    return safeExitBtn()+'<div style="padding-top:5vh"><div class="card"><span class="lbl">Easy to miss when you are exhausted</span>'+
+    '<h2>Does any of this sound familiar?</h2>'+
+    '<p class="sub">Tick what fits, or nothing. This part is not scored; it is here because abuse is not only bruises, and the quiet kinds are the hardest to see from inside.</p>'+cite(['hotlineid'])+
+    '<div class="spacer"></div>'+
+    SAFE_R.map(function(r,ri){ var on=!!SAFE.ticks[ri]; return '<button class="btn ghost safe-tick'+(on?' on':'')+'" role="checkbox" aria-checked="'+on+'" data-sr="'+ri+'" style="text-align:left;font-weight:300;margin-top:10px;border-radius:18px">'+(on?'✓ ':'')+r+'</button>'; }).join('')+
+    '<div class="spacer"></div><button class="btn blueb" data-act="safe-finish">Continue</button></div></div>';
+  }
+  return safeExitBtn()+safeResults();
+}
+function safeResults(){
+  var sc=safeScore(), h='<div style="padding-top:5vh"><div class="card">';
+  if(sc.yes>0){
+    h+='<span class="lbl">Safe at home</span><h2>What you described has a name, and it is not your fault.</h2>'+
+    '<p style="margin-top:10px;font-weight:300">Being humiliated, frightened, forced, or hurt by a partner is abuse. It is common around a birth, it is never caused by the person it happens to, and it tends to grow rather than fade. You do not have to be certain, and you do not have to decide anything tonight. You only have to talk to one person who does this every day.</p>'+cite(['acogipv','cdcipv']);
+  } else if(sc.total>0 || sc.ticks>0){
+    h+='<span class="lbl">Safe at home</span><h2>Not knowing is information too.</h2>'+
+    '<p style="margin-top:10px;font-weight:300">When you are this tired, it is hard to tell what is normal strain and what is something else. Here is a plain rule: abuse does not need you to be sure. If you are asking the question, that is reason enough to say it out loud to someone trained to listen. They will not push you anywhere.</p>'+cite(['hotlineid','acogipv']);
+  } else {
+    h+='<span class="lbl">Safe at home</span><h2>Steadier ground — and the door stays open.</h2>'+
+    '<p style="margin-top:10px;font-weight:300">Nothing here points toward harm, and we are glad. Things can change in the first year, so this page stays where it is. If a friend ever comes to mind while reading it, the numbers below are for her too.</p>'+cite(['acogipv']);
+  }
+  h+='<hr class="hr">'+
+  '<a href="tel:18007997233" class="btn blueb">Call the Hotline — 1-800-799-7233</a>'+
+  '<a href="sms:88788?&body=START" class="btn ghost">Text START to 88788</a>'+
+  '<a href="https://www.thehotline.org/" target="_blank" rel="noopener" class="btn ghost">Chat privately at thehotline.org</a>'+
+  '<p class="tiny" style="margin-top:12px">The National Domestic Violence Hotline is free, confidential, and open every hour of every day. Advocates listen, help you think through safety, and connect you to local help — only if you want it.</p>'+
+  '<div class="li" style="margin-top:10px">In immediate danger, <b>call 911</b>. If speaking is unsafe, many areas accept <b>text to 911</b>.</div>'+
+  '<div class="li">Your provider asks about this at your visits for a reason. You can say it there, privately, in one sentence: <i>I do not feel safe at home.</i></div>'+
+  '<div class="li">Feeling frightened or hopeless as well? <b>Call or text 988</b>, or PSI at 1-800-944-4773.</div>'+
+  '<p class="tiny" style="margin-top:14px">Nothing from this screen was saved. It is not in your Brief, your export, or anywhere on this device.</p>'+
+  '<div class="spacer"></div><button class="btn ghost" data-act="safe-done">Back to Mind</button></div></div>';
+  return h;
+}
+document.addEventListener('keydown', function(e){ if(e.key==='Escape' && SAFE.active){ safeExit(); } });
 
 /* ================= snackbar ================= */
 var snackTimer=null;
@@ -660,6 +750,7 @@ function epdsBand(score){
 }
 function viewMind(){
   if(EP.active) return viewEpdsQuestion();
+  if(SAFE.active) return viewSafe();
   var le=lastEpds();
   var h='<h1 style="margin-top:6px">Your mind</h1><p class="sub">Feelings are information. Checking in is strength.</p>';
   h+='<div class="card" style="position:relative;overflow:hidden"><span class="lbl">Somewhere quiet</span>'+
@@ -677,6 +768,7 @@ function viewMind(){
     '<div class="bars">'+S.epds.slice(-10).map(function(e){var hh=Math.max(8,Math.round((e.score/30)*100)); return '<div class="b bluefill" style="height:'+hh+'%"></div>';}).join('')+'</div>'+
     '<p class="tiny" style="margin-top:8px">Lower is lighter. A rising line is worth sharing; your Brief carries it automatically.</p></div>';
   }
+  h+=safeCard();
   h+='<div class="card"><span class="lbl">Your pages</span>'+
   '<h3>Write freely, or not at all</h3>'+
   '<p class="tiny" style="margin:4px 0 10px">No prompts, no streaks. A blank page that stays on this device.</p>'+
@@ -692,6 +784,7 @@ function viewMind(){
   '<div class="li"><b>988</b> — Suicide and Crisis Lifeline. <a href="tel:988">Call or text 988</a>, free, always.</div>'+
   '<div class="li"><b>Postpartum Support International</b> — <a href="tel:18009444773">1-800-944-4773</a>, or text HELP to the same number.</div>'+
   '<div class="li"><b>Crisis Text Line</b> — text HOME to 741741.</div>'+
+  '<div class="li"><b>National Domestic Violence Hotline</b> — <a href="tel:18007997233">1-800-799-7233</a>, text START to 88788, or chat at <a href="https://www.thehotline.org/" target="_blank" rel="noopener">thehotline.org</a>. Free, private, always open.</div>'+
   '<div class="li">In immediate danger, <b>call 911</b> and say postpartum emergency.</div></div>';
   if(fmShowOnMind()){ h+=fmCard('mind'); setTimeout(fmLoadPrice,0); }
   return h;
@@ -1048,6 +1141,8 @@ function wireCommon(){
     t=e.target.closest('[data-energy]'); if(t){ CI.energy=Number(t.getAttribute('data-energy')); selIn('ci-energy',t); return; }
     t=e.target.closest('[data-pain]'); if(t){ CI.pain=Number(t.getAttribute('data-pain')); selIn('ci-pain',t); return; }
     t=e.target.closest('[data-bleed]'); if(t){ CI.bleeding=t.getAttribute('data-bleed'); selIn('ci-bleed',t); return; }
+    t=e.target.closest('[data-sq]'); if(t){ SAFE.answers[SAFE.step-1]=SAFE_OPTS[Number(t.getAttribute('data-sq'))][1]; SAFE.step++; render(); window.scrollTo({top:0}); return; }
+    t=e.target.closest('[data-sr]'); if(t){ var sr=t.getAttribute('data-sr'); if(SAFE.ticks[sr]) delete SAFE.ticks[sr]; else SAFE.ticks[sr]=1; render(); return; }
     t=e.target.closest('[data-epq]'); if(t){ EP.answers[EP.idx]=Number(t.getAttribute('data-epq')); EP.idx++; if(EP.idx>=EPDS_Q.length){ finishEpds(); } else { render(); } return; }
     var b=e.target.closest('[data-act]'); if(!b) return;
     act(b.getAttribute('data-act'), b);
@@ -1102,6 +1197,12 @@ function act(a, btn){
     var c={id:uid(), date:todayKey(), text:v}; S.concerns.push(c); persist(); render();
     snack('Added to your visit brief.', function(){ S.concerns=S.concerns.filter(function(x){return x.id!==c.id;}); persist(); render(); }); return; }
   if(a==='epds-start'){ EP={active:true, idx:0, answers:[]}; render(); return; }
+  if(a==='safe-start'){ safeReset(); SAFE.active=true; render(); window.scrollTo({top:0}); return; }
+  if(a==='safe-next'){ SAFE.step++; render(); window.scrollTo({top:0}); return; }
+  if(a==='safe-cancel'){ safeReset(); render(); return; }
+  if(a==='safe-exit'){ safeExit(); return; }
+  if(a==='safe-finish'){ SAFE.step=SAFE_Q.length+2; render(); window.scrollTo({top:0}); return; }
+  if(a==='safe-done'){ safeReset(); render(); window.scrollTo({top:0}); return; }
   if(a==='epds-cancel'){ EP.active=false; render(); return; }
   if(a==='brief-print'){ window.print(); return; }
   if(a==='brief-copy'){
