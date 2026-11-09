@@ -245,7 +245,7 @@ a{color:var(--pine); font-weight:500; text-decoration:none;}
   .card{box-shadow:none; border:1px solid #ccc; break-inside:avoid;}
   .app{padding-bottom:0; max-width:100%;}
 }
-.safe-exit{position:fixed;top:12px;right:12px;z-index:60;background:var(--blue-soft);border-color:transparent;color:var(--pine)}.safe-tick.on{background:var(--blue-soft);border-color:transparent}@media print{.safe-exit{display:none}}
+.safe-exit{position:fixed;right:14px;bottom:calc(92px + env(safe-area-inset-bottom,0px));z-index:60;background:var(--blue-soft);border-color:transparent;color:var(--pine);box-shadow:0 6px 18px rgba(36,64,60,.16)}.safe-tick.on{background:var(--blue-soft);border-color:transparent}@media print{.safe-exit{display:none}}
 </style>
 </head>
 <body>
@@ -514,7 +514,7 @@ function safeResults(){
     '<p style="margin-top:10px;font-weight:300">Nothing here points toward harm, and we are glad. Things can change in the first year, so this page stays where it is. If a friend ever comes to mind while reading it, the numbers below are for her too.</p>'+cite(['acogipv']);
   }
   h+='<hr class="hr">'+
-  '<a href="tel:18007997233" class="btn blueb">Call the Hotline — 1-800-799-7233</a>'+
+  '<a href="tel:18007997233" class="btn blueb">Call 1-800-799-7233</a>'+
   '<a href="sms:88788?&body=START" class="btn ghost">Text START to 88788</a>'+
   '<a href="https://www.thehotline.org/" target="_blank" rel="noopener" class="btn ghost">Chat privately at thehotline.org</a>'+
   '<p class="tiny" style="margin-top:12px">The National Domestic Violence Hotline is free, confidential, and open every hour of every day. Advocates listen, help you think through safety, and connect you to local help — only if you want it.</p>'+
